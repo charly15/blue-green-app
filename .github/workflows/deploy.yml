@@ -5,39 +5,58 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
 env:
-  IMAGE_NAME: ghcr.io/charly15/blue-green-app
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/blue-green-app
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & Push image
         run: |
-          docker build -t $IMAGE_NAME:${{ github.ref_name }} ./app
-          docker push $IMAGE_NAME:${{ github.ref_name }}
+          TAG=${{ github.ref_name }}
+          docker build -t $IMAGE_NAME:$TAG ./app
+          docker push $IMAGE_NAME:$TAG
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
-
     steps:
+      - name: Copy deploy files
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          source: "deploy/*"
+          target: "/home/${{ secrets.SSH_USER }}/deploy/"
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
           script: |
-            bash /home/deployer/deploy.sh ${{ github.ref_name }}
+            chmod +x /home/${{ secrets.SSH_USER }}/deploy/deploy.sh
+            /home/${{ secrets.SSH_USER }}/deploy/deploy.sh ${{ github.ref_name }}

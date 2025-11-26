@@ -1,0 +1,21 @@
+# Node
+node_modules/
+npm-debug.log
+.env
+
+# Docker
+docker-compose.override.yml
+
+# SSH keys
+*.pem
+*.key
+*.pub
+.id_rsa*
+/home/***/.ssh/*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git

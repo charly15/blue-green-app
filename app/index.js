@@ -1,12 +1,10 @@
-const http = require('http');
-const port = process.env.PORT || 3000;
-const color = process.env.APP_COLOR || 'unknown';
+const http = require("http");
 
 const server = http.createServer((req, res) => {
-  res.writeHead(200);
-  res.end(`App running in ${color} environment`);
+  const env = process.env.ENV || "UNKNOWN";
+  res.end(`App running in ${env} environment`);
 });
 
-server.listen(port, () => {
-  console.log(`Listening on port ${port}`);
+server.listen(3000, () => {
+  console.log("App running on port 3000");
 });

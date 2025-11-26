@@ -1,51 +1,32 @@
 #!/bin/bash
 set -e
+REPO_OWNER="${REPO_OWNER:-charly15}"
+IMAGE="ghcr.io/${REPO_OWNER}/blue-green-app:${GITHUB_REF_NAME:-latest}"
 
-NEW_TAG=$1
-IMAGE_NAME="ghcr.io/charly15/blue-green-app"
-NEW_IMAGE="$IMAGE_NAME:$NEW_TAG"
-
-APP_DIR="/home/deployer/app"
-ENV_FILE="$APP_DIR/.env"
-NGINX_DIR="/etc/nginx"
-
-if [ ! -f "$ENV_FILE" ]; then
-    echo "CURRENT_PRODUCTION=green" > "$ENV_FILE"
-fi
-
-source "$ENV_FILE"
-
-if [ "$CURRENT_PRODUCTION" = "blue" ]; then
-    INACTIVE_SLOT="green"
-    INACTIVE_PORT="3001"
-    CONF_FILE="green.conf"
+# Determinar entorno actual
+if grep -q "3000" /etc/nginx/current_upstream.conf 2>/dev/null; then
+  NEXT="green"
 else
-    INACTIVE_SLOT="blue"
-    INACTIVE_PORT="3000"
-    CONF_FILE="blue.conf"
+  NEXT="blue"
 fi
 
-echo "Pulling new image..."
-docker pull $NEW_IMAGE
+echo "Deploying to $NEXT..."
 
-echo "Stopping old container..."
-docker stop $INACTIVE_SLOT || true
-docker rm $INACTIVE_SLOT || true
+# Pull image
+sudo docker pull "$IMAGE"
 
-echo "Starting new container $INACTIVE_SLOT..."
-docker run -d \
-  --name $INACTIVE_SLOT \
-  -p $INACTIVE_PORT:3000 \
-  -e APP_COLOR=$INACTIVE_SLOT \
-  $NEW_IMAGE
+# Run on the target port
+if [ "$NEXT" = "green" ]; then
+  sudo docker stop green || true
+  sudo docker rm green || true
+  sudo docker run -d --name green -e ENV=green -p 3001:3000 "$IMAGE"
+else
+  sudo docker stop blue || true
+  sudo docker rm blue || true
+  sudo docker run -d --name blue -e ENV=blue -p 3000:3000 "$IMAGE"
+fi
 
-sleep 10
+# Switch traffic
+sudo /home/deployer/deploy/switch.sh $NEXT
 
-echo "Switching Nginx to $INACTIVE_SLOT..."
-sudo cp $NGINX_DIR/$CONF_FILE $NGINX_DIR/current_upstream.conf
-sudo nginx -t
-sudo systemctl reload nginx
-
-echo "CURRENT_PRODUCTION=$INACTIVE_SLOT" > "$ENV_FILE"
-
-echo "Deployment finished."
+echo "Despliegue en $NEXT finalizado."

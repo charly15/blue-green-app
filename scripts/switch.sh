@@ -5,21 +5,13 @@ if [ "$COLOR" != "blue" ] && [ "$COLOR" != "green" ]; then
   exit 1
 fi
 
-if [ "$COLOR" = "blue" ]; then
-  sudo tee /etc/nginx/current_upstream.conf > /dev/null <<EOF
+PORT=$([ "$COLOR" = "blue" ] && echo "3001" || echo "3002")
+
+sudo tee /etc/nginx/current_upstream.conf > /dev/null <<EOF
 upstream backend {
-    server 127.0.0.1:3000;
+    server 127.0.0.1:$PORT;
 }
 EOF
-  echo "Cambiado a BLUE (3000)"
-else
-  sudo tee /etc/nginx/current_upstream.conf > /dev/null <<EOF
-upstream backend {
-    server 127.0.0.1:3001;
-}
-EOF
-  echo "Cambiado a GREEN (3001)"
-fi
 
 sudo systemctl reload nginx
-echo "Nginx recargado."
+echo "Nginx recargado. Contenedor activo: $COLOR"

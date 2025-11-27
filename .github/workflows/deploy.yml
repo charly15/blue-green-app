@@ -32,15 +32,14 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_KEY }}
           port: 22
-          source: "deploy/*"
-          target: "/home/deployer/deploy/"
+          source: "."
+          target: "/home/deployer/blue-green-app/"
+          strip_components: 0
           overwrite: true
 
       - name: Obtener el nombre del tag
         id: get_tag
-        run: |
-          # GITHUB_REF_NAME ya contiene el nombre simple del tag (ej. v1.0.0)
-          echo "tag_name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+        run: echo "tag_name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Run deploy script on server
         uses: appleboy/ssh-action@v0.1.7
@@ -50,6 +49,8 @@ jobs:
           key: ${{ secrets.SERVER_KEY }}
           port: 22
           script: |
-            chmod +x /home/deployer/deploy/*.sh
-            chmod +x /home/scripts/switch.sh
-            /home/deployer/deploy/deploy.sh  ${{ steps.get_tag.outputs.tag_name }}
+            chmod +x /home/deployer/blue-green-app/deploy/deploy.sh
+            chmod +x /home/deployer/blue-green-app/scripts/switch.sh
+            chmod +x /home/deployer/blue-green-app/scripts/status.sh
+            /home/deployer/blue-green-app/deploy/deploy.sh ${{ steps.get_tag.outputs.tag_name }}
+

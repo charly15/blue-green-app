@@ -12,7 +12,7 @@ else
   exit 1
 fi
 
-# Validar configuración
+# Validar configuración
 if sudo nginx -t; then
   echo "✓ Configuración Nginx válida"
   sudo systemctl reload nginx

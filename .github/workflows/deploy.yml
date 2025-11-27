@@ -3,18 +3,18 @@ name: Blue-Green Deployment
 on:
   push:
     tags: 
-      - 'v*.*.*'   # Ejecuta solo cuando subes un tag como v1.0.2
+      - 'v*.*.*'   
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout del código
+     
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2️⃣ Login en GHCR usando PAT
+      
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
         with:
@@ -22,7 +22,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_PAT }}
 
-      # 3️⃣ Build y push de la imagen Docker a GHCR
+      
       - name: Build and Push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -31,14 +31,15 @@ jobs:
           file: app/Dockerfile
           context: ./app
 
-      # 4️⃣ Conectar al VPS y desplegar
+     
       - name: SSH Deploy to VPS
         uses: appleboy/ssh-action@v0.1.7
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.VPS_PORT }}
+          host: ${{ secrets.SERVER_IP }}       
+          username: ${{ secrets.SERVER_USER }} 
+          key: ${{ secrets.SSH_PRIVATE_KEY }}  
+          port: 22                             
+
           script: |
             cd /home/deployer/blue-green-app
 

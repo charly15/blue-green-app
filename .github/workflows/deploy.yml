@@ -10,22 +10,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Login GHCR
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_PAT }}
 
-      - name: Build and Push Image
+      - name: Build and Push Docker Image
         run: |
-          docker build -t ghcr.io/${{ github.repository_owner }}/blue-green-app:latest -f app/Dockerfile app/
-          docker push ghcr.io/${{ github.repository_owner }}/blue-green-app:latest
+          docker build -t ghcr.io/${{ github.repository_owner }}/blue-green-app:${GITHUB_REF_NAME} -f app/Dockerfile app/
+          docker push ghcr.io/${{ github.repository_owner }}/blue-green-app:${GITHUB_REF_NAME}
 
-      - name: Copy deploy files to server
+      - name: Copy project to VPS
         uses: appleboy/scp-action@v0.1.4
         with:
           host: ${{ secrets.SERVER_IP }}
@@ -34,14 +34,13 @@ jobs:
           port: 22
           source: "."
           target: "/home/deployer/blue-green-app/"
-          strip_components: 0
           overwrite: true
 
-      - name: Obtener el nombre del tag
+      - name: Get tag name
         id: get_tag
         run: echo "tag_name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
-      - name: Run deploy script on server
+      - name: Run deploy script on VPS
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_IP }}
@@ -53,4 +52,3 @@ jobs:
             chmod +x /home/deployer/blue-green-app/scripts/switch.sh
             chmod +x /home/deployer/blue-green-app/scripts/status.sh
             /home/deployer/blue-green-app/deploy/deploy.sh ${{ steps.get_tag.outputs.tag_name }}
-

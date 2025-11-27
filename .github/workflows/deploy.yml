@@ -38,36 +38,53 @@ jobs:
           script: |
             cd /home/deployer/blue-green-app
 
-            git fetch --all --tags
-            git reset --hard ${{ github.ref_name }}
+            # Fix Git ownership issues
+            sudo git config --global --add safe.directory /home/deployer/blue-green-app
+            sudo chown -R $USER:$USER /home/deployer/blue-green-app
 
-            # Aplicar permisos *DESPUÉS* del reset (muy importante)
-            chmod +x scripts/*.sh
-            chmod +x deploy/*.sh
+            # Asegurar permisos de ejecución siempre
+            chmod +x scripts/*.sh || true
+            chmod +x deploy/*.sh || true
 
-            ACTIVE=$(scripts/status.sh)
+            echo "✓ Permisos corregidos"
 
-            if [ "$ACTIVE" = "blue" ]; then
-              TARGET="green"
-              PORT=3002
+            # Determinar entorno activo leyendo el upstream actual
+            ACTIVE=$(grep -o "300[01]" /etc/nginx/current_upstream.conf 2>/dev/null || echo "")
+
+            if [ "$ACTIVE" = "3002" ]; then
+              DEPLOY_ENV="green"
+              DEPLOY_PORT="3001"
             else
-              TARGET="blue"
-              PORT=3001
+              DEPLOY_ENV="blue"
+              DEPLOY_PORT="3002"
             fi
 
             echo "Entorno activo: $ACTIVE"
-            echo "Desplegando en: $TARGET (puerto $PORT)"
+            echo "Desplegando en: $DEPLOY_ENV (puerto $DEPLOY_PORT)"
 
-            ./deploy/deploy.sh $TARGET ${{ github.ref_name }}
+            # Actualizar repositorio al tag actual
+            git fetch --all --tags
+            git reset --hard ${{ github.ref_name }}
 
-            echo "Health check..."
+            # Asegurar otra vez permisos si fueron reemplazados por git
+            chmod +x scripts/*.sh || true
+            chmod +x deploy/*.sh || true
+
+            echo "✓ Permisos corregidos tras git reset"
+
+            # Ejecutar el deploy
+            ./deploy/deploy.sh $DEPLOY_ENV ${{ github.ref_name }}
+
+            # Esperar contenedor para healthcheck
             sleep 5
 
-            if curl -s http://127.0.0.1:$PORT/ > /dev/null; then
-              echo "✓ OK → Haciendo switch"
-              ./scripts/switch.sh $TARGET
+            # Health check sobre el nuevo entorno
+            if curl -s http://127.0.0.1:$DEPLOY_PORT/ > /dev/null 2>&1; then
+              echo "✓ Health check exitoso"
+              ./scripts/switch.sh $DEPLOY_ENV
+              echo "✓ Switcheo realizado correctamente"
             else
-              echo "✗ Falló → rollback"
-              ./deploy/rollback.sh $TARGET
+              echo "✗ Health check fallido, revirtiendo..."
+              ./deploy/rollback.sh $DEPLOY_ENV
               exit 1
             fi

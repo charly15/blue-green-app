@@ -36,6 +36,12 @@ jobs:
           target: "/home/deployer/deploy/"
           overwrite: true
 
+      - name: Obtener el nombre del tag
+        id: get_tag
+        run: |
+          # GITHUB_REF_NAME ya contiene el nombre simple del tag (ej. v1.0.0)
+          echo "tag_name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
       - name: Run deploy script on server
         uses: appleboy/ssh-action@v0.1.7
         with:
@@ -45,4 +51,4 @@ jobs:
           port: 22
           script: |
             chmod +x /home/deployer/deploy/*.sh
-            /home/deployer/deploy/deploy.sh
+            /home/deployer/deploy/deploy.sh  ${{ steps.get_tag.outputs.tag_name }}

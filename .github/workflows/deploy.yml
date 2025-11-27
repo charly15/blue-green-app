@@ -10,17 +10,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Log in to GitHub Container Registry
+      - name: Login GHCR
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_PAT }}
 
-      - name: Build and Push Docker image
+      - name: Build & Push image
         uses: docker/build-push-action@v5
         with:
           push: true
@@ -28,63 +27,44 @@ jobs:
           file: app/Dockerfile
           context: ./app
 
-      - name: SSH Deploy to VPS
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
           script: |
             cd /home/deployer/blue-green-app
 
-            # Fix Git ownership issues
-            sudo git config --global --add safe.directory /home/deployer/blue-green-app
-            sudo chown -R $USER:$USER /home/deployer/blue-green-app
+            chmod +x scripts/*.sh
+            chmod +x deploy/*.sh
 
-            # Asegurar permisos de ejecución siempre
-            chmod +x scripts/*.sh || true
-            chmod +x deploy/*.sh || true
+            ACTIVE=$(scripts/status.sh)
 
-            echo "✓ Permisos corregidos"
-
-            # Determinar entorno activo leyendo el upstream actual
-            ACTIVE=$(grep -o "300[01]" /etc/nginx/current_upstream.conf 2>/dev/null || echo "")
-
-            if [ "$ACTIVE" = "3000" ]; then
-              DEPLOY_ENV="green"
-              DEPLOY_PORT="3001"
+            if [ "$ACTIVE" = "blue" ]; then
+              TARGET="green"
+              PORT=3002
             else
-              DEPLOY_ENV="blue"
-              DEPLOY_PORT="3000"
+              TARGET="blue"
+              PORT=3001
             fi
 
             echo "Entorno activo: $ACTIVE"
-            echo "Desplegando en: $DEPLOY_ENV (puerto $DEPLOY_PORT)"
+            echo "Desplegando en: $TARGET (puerto $PORT)"
 
-            # Actualizar repositorio al tag actual
             git fetch --all --tags
             git reset --hard ${{ github.ref_name }}
 
-            # Asegurar otra vez permisos si fueron reemplazados por git
-            chmod +x scripts/*.sh || true
-            chmod +x deploy/*.sh || true
+            ./deploy/deploy.sh $TARGET ${{ github.ref_name }}
 
-            echo "✓ Permisos corregidos tras git reset"
-
-            # Ejecutar el deploy
-            ./deploy/deploy.sh $DEPLOY_ENV ${{ github.ref_name }}
-
-            # Esperar contenedor para healthcheck
+            echo "Health check..."
             sleep 5
 
-            # Health check sobre el nuevo entorno
-            if curl -s http://127.0.0.1:$DEPLOY_PORT/ > /dev/null 2>&1; then
-              echo "✓ Health check exitoso"
-              ./scripts/switch.sh $DEPLOY_ENV
-              echo "✓ Switcheo realizado correctamente"
+            if curl -s http://127.0.0.1:$PORT/ > /dev/null; then
+              echo "✓ OK → Haciendo switch"
+              ./scripts/switch.sh $TARGET
             else
-              echo "✗ Health check fallido, revirtiendo..."
-              ./deploy/rollback.sh $DEPLOY_ENV
+              echo "✗ Falló → rollback"
+              ./deploy/rollback.sh $TARGET
               exit 1
             fi

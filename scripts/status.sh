@@ -1,11 +1,13 @@
 #!/bin/bash
+
 CONF="/etc/nginx/sites-available/app"
 
-PORT=$(grep -o "300[01]" "$CONF")
+# Busca la línea del backend y extrae el puerto
+PORT=$(grep -A2 "upstream backend" "$CONF" | grep -o "300[12]" | head -n1)
 
-if [[ "$PORT" == "3000" ]]; then
+if [ "$PORT" = "3001" ]; then
   echo "blue"
-elif [[ "$PORT" == "3001" ]]; then
+elif [ "$PORT" = "3002" ]; then
   echo "green"
 else
   echo "unknown"

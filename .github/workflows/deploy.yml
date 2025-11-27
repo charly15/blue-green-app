@@ -49,7 +49,7 @@ jobs:
             echo "✓ Permisos corregidos"
 
             # Determinar entorno activo leyendo el upstream actual
-            ACTIVE=$(grep -o "300[01]" /etc/nginx/app 2>/dev/null || echo "")
+            ACTIVE=$(grep -o "300[01]" /etc/nginx/sites-available/app 2>/dev/null || echo "")
 
             if [ "$ACTIVE" = "3002" ]; then
               DEPLOY_ENV="green"

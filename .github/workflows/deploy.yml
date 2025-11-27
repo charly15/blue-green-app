@@ -1,54 +1,73 @@
-name: Deploy Blue-Green
+name: Blue-Green Deployment
 
 on:
   push:
-    tags:
-      - "v*"
+    tags: 
+      - 'v*.*.*'   # Ejecuta solo cuando subes un tag como v1.0.2
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout del código
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Login to GHCR
-        uses: docker/login-action@v3
+      # 2️⃣ Build y push de la imagen Docker a GHCR
+      - name: Build and Push Docker image
+        uses: docker/build-push-action@v5
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_PAT }}
+          push: true
+          tags: ghcr.io/charly15/blue-green-app:${{ github.ref_name }}
+          file: app/Dockerfile
+          context: ./app
 
-      - name: Build and Push Docker Image
-        run: |
-          docker build -t ghcr.io/${{ github.repository_owner }}/blue-green-app:${GITHUB_REF_NAME} -f app/Dockerfile app/
-          docker push ghcr.io/${{ github.repository_owner }}/blue-green-app:${GITHUB_REF_NAME}
-
-      - name: Copy project to VPS
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_KEY }}
-          port: 22
-          source: "."
-          target: "/home/deployer/blue-green-app/"
-          overwrite: true
-
-      - name: Get tag name
-        id: get_tag
-        run: echo "tag_name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-
-      - name: Run deploy script on VPS
+      # 3️⃣ Conectar al VPS y desplegar
+      - name: SSH Deploy to VPS
         uses: appleboy/ssh-action@v0.1.7
         with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_KEY }}
-          port: 22
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT }}
           script: |
-            chmod +x /home/deployer/blue-green-app/deploy/deploy.sh
-            chmod +x /home/deployer/blue-green-app/scripts/switch.sh
-            chmod +x /home/deployer/blue-green-app/scripts/status.sh
-            /home/deployer/blue-green-app/deploy/deploy.sh ${{ steps.get_tag.outputs.tag_name }}
+            cd /home/deployer/blue-green-app
+
+            # Determinar entorno activo
+            ACTIVE=$(grep "server 127.0.0.1" /etc/nginx/sites-available/app.conf | grep -o "300[01]")
+
+            if [ "$ACTIVE" = "3000" ]; then
+              DEPLOY_ENV="green"
+              DEPLOY_PORT="3001"
+            else
+              DEPLOY_ENV="blue"
+              DEPLOY_PORT="3000"
+            fi
+
+            echo "Entorno activo: $ACTIVE"
+            echo "Desplegando en: $DEPLOY_ENV (puerto $DEPLOY_PORT)"
+
+            # Traer la última versión del repo
+            git fetch --all --tags
+            git reset --hard ${{ github.ref_name }}
+
+            # Ejecutar deploy
+            chmod +x deploy/deploy.sh
+            ./deploy/deploy.sh $DEPLOY_ENV ${{ github.ref_name }}
+
+            # Esperar contenedor
+            sleep 5
+
+            # Health check
+            if curl -s http://127.0.0.1:$DEPLOY_PORT/ > /dev/null 2>&1; then
+              echo "✓ Health check exitoso"
+              chmod +x scripts/switch.sh
+              ./scripts/switch.sh $DEPLOY_ENV
+              echo "✓ Despliegue completado"
+            else
+              echo "✗ Health check fallido, revirtiendo"
+              chmod +x deploy/rollback.sh
+              ./deploy/rollback.sh $DEPLOY_ENV
+              exit 1
+            fi

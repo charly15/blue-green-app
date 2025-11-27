@@ -34,15 +34,17 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
           script: |
             cd /home/deployer/blue-green-app
 
-            # Fix Git ownership issues
-            sudo git config --global --add safe.directory /home/deployer/blue-green-app
-            sudo chown -R $USER:$USER /home/deployer/blue-green-app
+            # Fix git issues
+            git config --global --add safe.directory /home/deployer/blue-green-app
+            sudo chown -R deployer:deployer /home/deployer/blue-green-app
 
-            # Determinar entorno activo
+            # Dar permisos a scripts
+            chmod +x scripts/*.sh
+
+            # Determinar entorno activo leyendo Nginx real
             ACTIVE=$(grep "server 127.0.0.1" /etc/nginx/sites-available/app | grep -o "300[01]")
 
             if [ "$ACTIVE" = "3000" ]; then
@@ -53,9 +55,25 @@ jobs:
               DEPLOY_PORT="3000"
             fi
 
-            echo "Entorno activo: $ACTIVE"
-            echo "Desplegando en: $DEPLOY_ENV (puerto $DEPLOY_PORT)"
+            echo "Activo actualmente: $ACTIVE"
+            echo "Desplegando en: $DEPLOY_ENV ($DEPLOY_PORT)"
 
-            # Traer la última versión del repo
+            # Pull último tag
             git fetch --all --tags
-            git reset --h
+            git reset --hard origin/main
+
+            # Detener contenedor previo (si existe)
+            docker rm -f $DEPLOY_ENV || true
+
+            # Ejecutar contenedor nuevo
+            docker run -d \
+              --name $DEPLOY_ENV \
+              -p $DEPLOY_PORT:3000 \
+              ghcr.io/charly15/blue-green-app:${{ github.ref_name }}
+
+            # Actualizar Nginx al nuevo puerto
+            sudo sed -i "s/server 127.0.0.1:300[01]/server 127.0.0.1:$DEPLOY_PORT/" /etc/nginx/sites-available/app
+
+            sudo systemctl reload nginx
+
+            echo "Switcheo completado. Online: $DEPLOY_ENV"

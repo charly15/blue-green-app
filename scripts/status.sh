@@ -1,15 +1,11 @@
 #!/bin/bash
-CONF="/etc/nginx/current_upstream.conf"
-
-if [ ! -f "$CONF" ]; then
-  echo "No se encontró el archivo de nginx."
-  exit 1
-fi
+CONF="/etc/nginx/sites-available/app"
 
 PORT=$(grep -o "300[01]" "$CONF")
-if [ "$PORT" == "3000" ]; then
+
+if [[ "$PORT" == "3000" ]]; then
   echo "blue"
-elif [ "$PORT" == "3001" ]; then
+elif [[ "$PORT" == "3001" ]]; then
   echo "green"
 else
   echo "unknown"

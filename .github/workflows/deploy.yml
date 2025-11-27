@@ -38,47 +38,45 @@ jobs:
           script: |
             cd /home/deployer/blue-green-app
 
-            # Fix Git ownership issues
             sudo git config --global --add safe.directory /home/deployer/blue-green-app
             sudo chown -R $USER:$USER /home/deployer/blue-green-app
 
-            # Asegurar permisos de ejecución siempre
             chmod +x scripts/*.sh || true
             chmod +x deploy/*.sh || true
 
             echo "✓ Permisos corregidos"
 
-            # Determinar entorno activo leyendo el upstream actual
+            # --- DETERMINAR ENTORNO ACTUAL Y SIGUIENTE ---
             ACTIVE=$(grep -A2 "upstream backend" /etc/nginx/sites-available/app | grep -o "300[12]" | head -n1)
 
-            if [ "$ACTIVE" = "3002" ]; then
+            if [ "$ACTIVE" = "3001" ]; then
               DEPLOY_ENV="green"
-              DEPLOY_PORT="3001"
+              DEPLOY_PORT="3002"
             else
               DEPLOY_ENV="blue"
-              DEPLOY_PORT="3002"
+              DEPLOY_PORT="3001"
             fi
 
-            echo "Entorno activo: $ACTIVE"
-            echo "Desplegando en: $DEPLOY_ENV (puerto $DEPLOY_PORT)"
+            echo "Backend actual: $ACTIVE"
+            echo "Entorno destino:  $DEPLOY_ENV"
+            echo "Puerto destino:   $DEPLOY_PORT"
 
-            # Actualizar repositorio al tag actual
+            # --- ACTUALIZAR REPO ---
             git fetch --all --tags
             git reset --hard ${{ github.ref_name }}
 
-            # Asegurar otra vez permisos si fueron reemplazados por git
             chmod +x scripts/*.sh || true
             chmod +x deploy/*.sh || true
 
             echo "✓ Permisos corregidos tras git reset"
 
-            # Ejecutar el deploy
+            # --- DEPLOY ---
             ./deploy/deploy.sh $DEPLOY_ENV ${{ github.ref_name }}
 
             # Esperar contenedor para healthcheck
             sleep 5
 
-            # Health check sobre el nuevo entorno
+            echo "Realizando health check..."
             if curl -s http://127.0.0.1:$DEPLOY_PORT/ > /dev/null 2>&1; then
               echo "✓ Health check exitoso"
               ./scripts/switch.sh $DEPLOY_ENV

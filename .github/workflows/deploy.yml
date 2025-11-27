@@ -2,7 +2,7 @@ name: Blue-Green Deployment
 
 on:
   push:
-    tags: 
+    tags:
       - 'v*.*.*'
 
 jobs:
@@ -34,18 +34,22 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
           script: |
             cd /home/deployer/blue-green-app
 
-            # Fix git issues
-            git config --global --add safe.directory /home/deployer/blue-green-app
-            sudo chown -R deployer:deployer /home/deployer/blue-green-app
+            # Fix Git ownership issues
+            sudo git config --global --add safe.directory /home/deployer/blue-green-app
+            sudo chown -R $USER:$USER /home/deployer/blue-green-app
 
-            # Dar permisos a scripts
-            chmod +x scripts/*.sh
+            # Asegurar permisos de ejecución siempre
+            chmod +x scripts/*.sh || true
+            chmod +x deploy/*.sh || true
 
-            # Determinar entorno activo leyendo Nginx real
-            ACTIVE=$(grep "server 127.0.0.1" /etc/nginx/sites-available/app | grep -o "300[01]")
+            echo "✓ Permisos corregidos"
+
+            # Determinar entorno activo leyendo el upstream actual
+            ACTIVE=$(grep -o "300[01]" /etc/nginx/current_upstream.conf 2>/dev/null || echo "")
 
             if [ "$ACTIVE" = "3000" ]; then
               DEPLOY_ENV="green"
@@ -55,25 +59,32 @@ jobs:
               DEPLOY_PORT="3000"
             fi
 
-            echo "Activo actualmente: $ACTIVE"
-            echo "Desplegando en: $DEPLOY_ENV ($DEPLOY_PORT)"
+            echo "Entorno activo: $ACTIVE"
+            echo "Desplegando en: $DEPLOY_ENV (puerto $DEPLOY_PORT)"
 
-            # Pull último tag
+            # Actualizar repositorio al tag actual
             git fetch --all --tags
-            git reset --hard origin/main
+            git reset --hard ${{ github.ref_name }}
 
-            # Detener contenedor previo (si existe)
-            docker rm -f $DEPLOY_ENV || true
+            # Asegurar otra vez permisos si fueron reemplazados por git
+            chmod +x scripts/*.sh || true
+            chmod +x deploy/*.sh || true
 
-            # Ejecutar contenedor nuevo
-            docker run -d \
-              --name $DEPLOY_ENV \
-              -p $DEPLOY_PORT:3000 \
-              ghcr.io/charly15/blue-green-app:${{ github.ref_name }}
+            echo "✓ Permisos corregidos tras git reset"
 
-            # Actualizar Nginx al nuevo puerto
-            sudo sed -i "s/server 127.0.0.1:300[01]/server 127.0.0.1:$DEPLOY_PORT/" /etc/nginx/sites-available/app
+            # Ejecutar el deploy
+            ./deploy/deploy.sh $DEPLOY_ENV ${{ github.ref_name }}
 
-            sudo systemctl reload nginx
+            # Esperar contenedor para healthcheck
+            sleep 5
 
-            echo "Switcheo completado. Online: $DEPLOY_ENV"
+            # Health check sobre el nuevo entorno
+            if curl -s http://127.0.0.1:$DEPLOY_PORT/ > /dev/null 2>&1; then
+              echo "✓ Health check exitoso"
+              ./scripts/switch.sh $DEPLOY_ENV
+              echo "✓ Switcheo realizado correctamente"
+            else
+              echo "✗ Health check fallido, revirtiendo..."
+              ./deploy/rollback.sh $DEPLOY_ENV
+              exit 1
+            fi

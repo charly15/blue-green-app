@@ -3,18 +3,16 @@ name: Blue-Green Deployment
 on:
   push:
     tags: 
-      - 'v*.*.*'   
+      - 'v*.*.*'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-     
       - name: Checkout code
         uses: actions/checkout@v3
 
-      
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
         with:
@@ -22,7 +20,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_PAT }}
 
-      
       - name: Build and Push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -31,20 +28,22 @@ jobs:
           file: app/Dockerfile
           context: ./app
 
-     
       - name: SSH Deploy to VPS
         uses: appleboy/ssh-action@v0.1.7
         with:
-          host: ${{ secrets.SERVER_IP }}       
-          username: ${{ secrets.SERVER_USER }} 
-          key: ${{ secrets.SSH_PRIVATE_KEY }}  
-          port: 22                             
-
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
           script: |
             cd /home/deployer/blue-green-app
 
+            # Fix Git ownership issues
+            sudo git config --global --add safe.directory /home/deployer/blue-green-app
+            sudo chown -R $USER:$USER /home/deployer/blue-green-app
+
             # Determinar entorno activo
-            ACTIVE=$(grep "server 127.0.0.1" /etc/nginx/sites-available/app.conf | grep -o "300[01]")
+            ACTIVE=$(grep "server 127.0.0.1" /etc/nginx/sites-available/app | grep -o "300[01]")
 
             if [ "$ACTIVE" = "3000" ]; then
               DEPLOY_ENV="green"
@@ -59,24 +58,4 @@ jobs:
 
             # Traer la última versión del repo
             git fetch --all --tags
-            git reset --hard ${{ github.ref_name }}
-
-            # Ejecutar deploy
-            chmod +x deploy/deploy.sh
-            ./deploy/deploy.sh $DEPLOY_ENV ${{ github.ref_name }}
-
-            # Esperar contenedor
-            sleep 5
-
-            # Health check
-            if curl -s http://127.0.0.1:$DEPLOY_PORT/ > /dev/null 2>&1; then
-              echo "✓ Health check exitoso"
-              chmod +x scripts/switch.sh
-              ./scripts/switch.sh $DEPLOY_ENV
-              echo "✓ Despliegue completado"
-            else
-              echo "✗ Health check fallido, revirtiendo"
-              chmod +x deploy/rollback.sh
-              ./deploy/rollback.sh $DEPLOY_ENV
-              exit 1
-            fi
+            git reset --h

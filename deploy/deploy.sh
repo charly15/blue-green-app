@@ -21,5 +21,8 @@ echo "Levantando $NAME en puerto $PORT con tag $TAG..."
 
 docker run -d \
   --name "$NAME" \
+  -e ENV="$ENV" \
   -p $PORT:3000 \
   ghcr.io/charly15/blue-green-app:"$TAG"
+
+

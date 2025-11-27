@@ -14,7 +14,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2️⃣ Build y push de la imagen Docker a GHCR
+      # 2️⃣ Login en GHCR
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 3️⃣ Build y push de la imagen Docker a GHCR
       - name: Build and Push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -23,7 +31,7 @@ jobs:
           file: app/Dockerfile
           context: ./app
 
-      # 3️⃣ Conectar al VPS y desplegar
+      # 4️⃣ Conectar al VPS y desplegar
       - name: SSH Deploy to VPS
         uses: appleboy/ssh-action@v0.1.7
         with:

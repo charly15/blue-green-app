@@ -51,4 +51,5 @@ jobs:
           port: 22
           script: |
             chmod +x /home/deployer/deploy/*.sh
+            chmod +x /home/scripts/switch.sh
             /home/deployer/deploy/deploy.sh  ${{ steps.get_tag.outputs.tag_name }}

@@ -31,7 +31,7 @@ app.get('/health', (req, res) => {
 app.get('/info', (req, res) => {
   res.json({
     environment: ENV,
-    version: '1.0.31',
+    version: '1.0.32',
     nodeVersion: process.version,
     platform: process.platform,
     memory: {

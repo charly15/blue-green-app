@@ -1,0 +1,8 @@
+node_modules
+npm-debug.log
+__tests__
+coverage
+.git
+.gitignore
+*.md
+index.js

@@ -17,6 +17,9 @@ fi
 echo "Deteniendo contenedor $NAME si existe..."
 docker rm -f "$NAME" 2>/dev/null || true
 
+echo "Descargando imagen con tag $TAG..."
+docker pull ghcr.io/charly15/blue-green-app:"$TAG"
+
 echo "Levantando $NAME en puerto $PORT con tag $TAG..."
 
 docker run -d \

@@ -13,6 +13,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        working-directory: ./app
+        run: npm install
+
+      - name: Run tests
+        working-directory: ./app
+        run: npm test
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
         with:
@@ -42,7 +55,6 @@ jobs:
             sudo chown -R $USER:$USER /home/deployer/blue-green-app
 
             chmod +x scripts/*.sh || true
-            chmod +x deploy/*.sh || true
 
             echo "✓ Permisos corregidos"
 
@@ -66,12 +78,11 @@ jobs:
             git reset --hard ${{ github.ref_name }}
 
             chmod +x scripts/*.sh || true
-            chmod +x deploy/*.sh || true
 
             echo "✓ Permisos corregidos tras git reset"
 
             # --- DEPLOY ---
-            ./deploy/deploy.sh $DEPLOY_ENV ${{ github.ref_name }}
+            ./scripts/deploy.sh $DEPLOY_ENV ${{ github.ref_name }}
 
             # Esperar contenedor para healthcheck
             sleep 5

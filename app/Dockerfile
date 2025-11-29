@@ -1,7 +1,14 @@
 FROM node:18-alpine
+
 WORKDIR /app
+
+# Copiar package.json e instalar dependencias
 COPY package.json ./
 RUN npm install --production
-COPY . .
+
+# Copiar código fuente
+COPY src ./src
+
 EXPOSE 3000
-CMD ["node", "index.js"]
+
+CMD ["node", "src/server.js"]

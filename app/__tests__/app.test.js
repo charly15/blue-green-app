@@ -43,7 +43,7 @@ describe('Blue-Green Deployment API Tests', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('environment');
-      expect(response.body).toHaveProperty('version', '1.0.0');
+      expect(response.body).toHaveProperty('version', '1.0.31');
       expect(response.body).toHaveProperty('nodeVersion');
       expect(response.body).toHaveProperty('platform');
       expect(response.body).toHaveProperty('memory');

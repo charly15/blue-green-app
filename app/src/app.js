@@ -11,7 +11,7 @@ const ENV = process.env.ENV || 'UNKNOWN';
 // Endpoint principal - Muestra el entorno actual
 app.get('/', (req, res) => {
   res.json({
-    message: 'Blue-Green Deployment API, cambiado por miauricio',
+    message: 'Blue-Green Deployment API',
     environment: ENV,
     status: 'running',
     timestamp: new Date().toISOString()
@@ -31,7 +31,7 @@ app.get('/health', (req, res) => {
 app.get('/info', (req, res) => {
   res.json({
     environment: ENV,
-    version: '1.0.0',
+    version: '1.0.31',
     nodeVersion: process.version,
     platform: process.platform,
     memory: {

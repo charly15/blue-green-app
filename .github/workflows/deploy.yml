@@ -2,8 +2,8 @@ name: Blue-Green Deployment
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    branches:
+      - main
 
 jobs:
   test:
@@ -52,11 +52,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_PAT }}
 
+      - name: Set image version (commit SHA corto)
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
       - name: Build and Push Docker image
         uses: docker/build-push-action@v5
         with:
           push: true
-          tags: ghcr.io/charly15/blue-green-app:${{ github.ref_name }}
+          tags: ghcr.io/charly15/blue-green-app:${{ steps.vars.outputs.sha_short }}
           file: app/Dockerfile
           context: ./app
 
@@ -93,15 +97,15 @@ jobs:
             echo "Puerto destino:   $DEPLOY_PORT"
 
             # --- ACTUALIZAR REPO ---
-            git fetch --all --tags
-            git reset --hard ${{ github.ref_name }}
+            git fetch --all
+            git reset --hard ${{ steps.vars.outputs.sha_short }}
 
             chmod +x scripts/*.sh || true
 
             echo "✓ Permisos corregidos tras git reset"
 
             # --- DEPLOY ---
-            ./scripts/deploy.sh $DEPLOY_ENV ${{ github.ref_name }}
+            ./scripts/deploy.sh $DEPLOY_ENV ${{ steps.vars.outputs.sha_short }}
 
             # Esperar contenedor para healthcheck
             sleep 5

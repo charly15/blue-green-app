@@ -11,7 +11,7 @@ const ENV = process.env.ENV || 'UNKNOWN';
 // Endpoint principal - Muestra el entorno actual
 app.get('/', (req, res) => {
   res.json({
-    message: 'Blue-Green Deployment APIIII, cambiado por miauricio',
+    message: 'Blue-Green Deployment API',
     environment: ENV,
     status: 'running',
     timestamp: new Date().toISOString()

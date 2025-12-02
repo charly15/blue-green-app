@@ -19,7 +19,7 @@ describe('Blue-Green Deployment API Tests', () => {
       const response = await request(app).get('/');
 
       expect(response.headers['content-type']).toMatch(/json/);
-      expect(response.body.message).toBe('Blue-Green Deployment API2, cambiado por miauricio');
+      expect(response.body.message).toBe('Blue-Green Deployment API');
     });
   });
 
